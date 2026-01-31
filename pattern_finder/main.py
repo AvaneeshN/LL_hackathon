@@ -4,13 +4,15 @@ import os
 import json
 import numpy as np
 
-from config import DATA_PATH, CORRELATION_THRESHOLD, OUTPUT_DIR
+from config import DATA_PATH, PROCESSED_DATA_PATH, CORRELATION_THRESHOLD, OUTPUT_DIR
 from data_handler import RawFileDataHandler
 from loss_vector_builder import LossVectorBuilder
 from correlation_engine import CorrelationEngine
 from clustering_engine import ClusteringEngine
 from validator import LinkValidator
 from visualization import Visualizer
+from cleaned_csv_handler import CleanedCSVFolderHandler
+
 
 
 def main():
@@ -20,7 +22,8 @@ def main():
 
     # 1. Load data
     print("🔍 Loading raw telemetry...")
-    handler = RawFileDataHandler(DATA_PATH)
+    handler = CleanedCSVFolderHandler(PROCESSED_DATA_PATH)
+
 
     cells = handler.get_cells()
     print(f"Found {len(cells)} cells")
