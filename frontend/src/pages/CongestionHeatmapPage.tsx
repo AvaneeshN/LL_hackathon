@@ -4,10 +4,11 @@ import { CongestionHeatmap } from "@/components/dashboard/CongestionHeatmap"
 import { HeatmapLegend } from "@/components/dashboard/HeatmapLegend"
 import { Slider } from "@/components/ui/slider"
 import { useTopology } from "@/hooks/useTopology"
+import { getLinkColor } from "@/utils/linkColors"
+import { Link } from "react-router-dom"
 
 const CongestionHeatmapPage = () => {
   const [timeRange, setTimeRange] = useState<[number, number]>([0, 60])
-
   const { data, isLoading, error } = useTopology()
 
   const links = useMemo(() => {
@@ -93,7 +94,9 @@ const CongestionHeatmapPage = () => {
           </div>
         </div>
 
-        {/* Main Content */}
+        {/* ============================
+            Main Content Grid
+        ============================ */}
         <div className="grid grid-cols-12 gap-6">
           {/* Heatmap */}
           <div className="col-span-12 lg:col-span-9 noc-panel rounded-lg p-4">
@@ -109,31 +112,26 @@ const CongestionHeatmapPage = () => {
             <CongestionHeatmap timeRange={timeRange} />
           </div>
 
-          {/* Legend and Info */}
+          {/* Sidebar */}
           <div className="col-span-12 lg:col-span-3 space-y-4">
             <HeatmapLegend />
 
+            {/* Reading Guide */}
             <div className="noc-panel rounded-lg p-4">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                 Reading the Heatmap
               </h3>
               <div className="space-y-3 text-xs text-muted-foreground">
                 <p>
-                  <span className="text-foreground font-medium">
-                    Rows:
-                  </span>{" "}
+                  <span className="text-foreground font-medium">Rows:</span>{" "}
                   Individual cells
                 </p>
                 <p>
-                  <span className="text-foreground font-medium">
-                    Columns:
-                  </span>{" "}
+                  <span className="text-foreground font-medium">Columns:</span>{" "}
                   Time slots (seconds)
                 </p>
                 <p>
-                  <span className="text-foreground font-medium">
-                    Color:
-                  </span>{" "}
+                  <span className="text-foreground font-medium">Color:</span>{" "}
                   Load vs Safe Link Capacity
                 </p>
               </div>
@@ -143,32 +141,76 @@ const CongestionHeatmapPage = () => {
                   Key Insight
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  Cells turning red at the same time indicate shared fronthaul
-                  congestion. This helps identify overloaded Ethernet links.
+                  Cells turning red simultaneously indicate shared fronthaul
+                  congestion and potential Ethernet bottlenecks.
                 </p>
               </div>
             </div>
 
+            {/* Active Links */}
             <div className="noc-panel rounded-lg p-4">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                 Active Links
               </h3>
 
-              <div className="space-y-2">
-                {links.map((link: any) => (
-                  <div
-                    key={link.id}
-                    className="flex items-center justify-between text-xs"
-                  >
-                    <span className="text-muted-foreground">
-                      {link.id}
-                    </span>
-                    <span className="font-mono text-status-warning">
-                      Safe:{" "}
-                      {link.capacity?.safe_gbps?.toFixed(1) || "0"} Gbps
-                    </span>
-                  </div>
-                ))}
+              <div className="space-y-3">
+                {links.map((link: any) => {
+                  const color = getLinkColor(link.id)
+                  const peak = link.capacity?.peak_gbps || 0
+                  const safe = link.capacity?.safe_gbps || 1
+                  const ratio = peak / safe
+
+                  let status = "SAFE"
+                  let statusClass = "text-status-ok"
+
+                  if (ratio > 0.9) {
+                    status = "CRITICAL"
+                    statusClass = "text-status-critical"
+                  } else if (ratio > 0.75) {
+                    status = "WARNING"
+                    statusClass = "text-status-warning"
+                  }
+
+                  return (
+                    <Link
+                      to={`/link/${link.id}`}
+                      key={link.id}
+                      className="block"
+                    >
+                      <div
+                        className="p-2 rounded border border-border hover:border-primary transition"
+                        style={{
+                          borderLeft: `4px solid ${color}`
+                        }}
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            {link.id}
+                          </span>
+                          <span className={`font-mono ${statusClass}`}>
+                            {status}
+                          </span>
+                        </div>
+
+                        {/* Utilization Bar */}
+                        <div className="mt-1 h-1 bg-border rounded overflow-hidden">
+                          <div
+                            className="h-full transition-all"
+                            style={{
+                              width: `${Math.min(100, ratio * 100)}%`,
+                              backgroundColor: color
+                            }}
+                          />
+                        </div>
+
+                        <div className="flex justify-between mt-1 text-[10px] font-mono text-muted-foreground">
+                          <span>{peak.toFixed(1)} Gbps</span>
+                          <span>{safe.toFixed(1)} Gbps</span>
+                        </div>
+                      </div>
+                    </Link>
+                  )
+                })}
               </div>
             </div>
           </div>

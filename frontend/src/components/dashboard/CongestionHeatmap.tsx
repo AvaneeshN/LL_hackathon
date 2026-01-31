@@ -5,6 +5,15 @@ interface CongestionHeatmapProps {
   timeRange: [number, number]
 }
 
+interface LinkLayout {
+  linkId: string
+  rows: {
+    cellId: string
+    series: number[]
+  }[]
+  yOffset: number
+}
+
 export const CongestionHeatmap = ({ timeRange }: CongestionHeatmapProps) => {
   const { data, isLoading, error } = useTopology()
   const [hoveredCell, setHoveredCell] = useState<{
@@ -12,44 +21,66 @@ export const CongestionHeatmap = ({ timeRange }: CongestionHeatmapProps) => {
     time: number
   } | null>(null)
 
+  const cellHeight = 20
+  const linkGap = 36
+  const topPadding = 24
+
   // ----------------------------
-  // Build heatmap rows from backend
+  // Build layouts (single source of truth)
   // ----------------------------
-  const heatmapRows = useMemo(() => {
+  const linkLayouts = useMemo<LinkLayout[]>(() => {
     if (!data?.links) return []
 
-    const rows: {
-      linkId: string
-      cellId: string
-      series: number[]
-    }[] = []
+    let offset = topPadding
+    const layouts: LinkLayout[] = []
 
     data.links.forEach((link: any) => {
       const series = link.traffic_timeseries || []
 
-      link.cells.forEach((cellId: string) => {
-        rows.push({
-          linkId: link.id,
-          cellId,
-          series
-        })
+      const rows = link.cells.map((cellId: string) => ({
+        cellId,
+        series
+      }))
+
+      layouts.push({
+        linkId: link.id,
+        rows,
+        yOffset: offset
       })
+
+      offset += rows.length * cellHeight + linkGap
     })
 
-    return rows
+    return layouts
   }, [data])
 
   // ----------------------------
   // Time axis
   // ----------------------------
   const timeSlots = useMemo(() => {
-    if (!heatmapRows.length) return []
+    if (!linkLayouts.length) return []
 
-    const series = heatmapRows[0].series || []
+    const series = linkLayouts[0].rows[0]?.series || []
     return series
       .map((_: any, i: number) => i)
       .filter((t: number) => t >= timeRange[0] && t <= timeRange[1])
-  }, [heatmapRows, timeRange])
+  }, [linkLayouts, timeRange])
+
+  const cellWidth = Math.max(8, Math.min(16, 800 / timeSlots.length))
+
+  // ----------------------------
+  // Total height
+  // ----------------------------
+  const totalHeight = useMemo(() => {
+    if (!linkLayouts.length) return 200
+
+    const last = linkLayouts[linkLayouts.length - 1]
+    return (
+      last.yOffset +
+      last.rows.length * cellHeight +
+      linkGap
+    )
+  }, [linkLayouts])
 
   // ----------------------------
   // Visual helpers
@@ -66,20 +97,6 @@ export const CongestionHeatmap = ({ timeRange }: CongestionHeatmapProps) => {
     return Math.min(1, 0.3 + (value / 40) * 0.7)
   }
 
-  const cellWidth = Math.max(8, Math.min(16, 800 / timeSlots.length))
-  const cellHeight = 20
-
-  // ----------------------------
-  // Group rows by link
-  // ----------------------------
-  const groupedRows = useMemo(() => {
-    return heatmapRows.reduce((acc, row) => {
-      if (!acc[row.linkId]) acc[row.linkId] = []
-      acc[row.linkId].push(row)
-      return acc
-    }, {} as Record<string, typeof heatmapRows>)
-  }, [heatmapRows])
-
   // ----------------------------
   // Loading / Error
   // ----------------------------
@@ -91,7 +108,7 @@ export const CongestionHeatmap = ({ timeRange }: CongestionHeatmapProps) => {
     )
   }
 
-  if (error || !heatmapRows.length) {
+  if (error || !linkLayouts.length) {
     return (
       <div className="h-96 flex items-center justify-center text-red-500">
         No congestion data available
@@ -107,15 +124,15 @@ export const CongestionHeatmap = ({ timeRange }: CongestionHeatmapProps) => {
       <div className="flex gap-8">
         {/* Y-axis labels */}
         <div className="flex flex-col shrink-0">
-          {Object.entries(groupedRows).map(([linkId, rows]) => (
-            <div key={linkId}>
+          {linkLayouts.map((layout) => (
+            <div key={layout.linkId}>
               <div className="h-6 flex items-center">
                 <span className="text-xs font-semibold text-primary font-mono">
-                  {linkId}
+                  {layout.linkId}
                 </span>
               </div>
 
-              {rows.map((row) => (
+              {layout.rows.map((row) => (
                 <div
                   key={row.cellId}
                   className="flex items-center justify-end pr-2"
@@ -127,7 +144,7 @@ export const CongestionHeatmap = ({ timeRange }: CongestionHeatmapProps) => {
                 </div>
               ))}
 
-              <div className="h-2" />
+              <div style={{ height: linkGap }} />
             </div>
           ))}
         </div>
@@ -135,12 +152,8 @@ export const CongestionHeatmap = ({ timeRange }: CongestionHeatmapProps) => {
         {/* Heatmap grid */}
         <div className="flex-1 overflow-x-auto">
           <svg
-            width={timeSlots.length * cellWidth + 60}
-            height={
-              heatmapRows.length * cellHeight +
-              Object.keys(groupedRows).length * 30 +
-              40
-            }
+            width={timeSlots.length * cellWidth + 80}
+            height={totalHeight}
           >
             {/* Time axis */}
             {timeSlots.filter((_, i) => i % 5 === 0).map((time) => (
@@ -157,53 +170,56 @@ export const CongestionHeatmap = ({ timeRange }: CongestionHeatmapProps) => {
               </text>
             ))}
 
-            {/* Heatmap cells */}
-            {Object.entries(groupedRows).map(
-              ([linkId, rows], groupIndex) => {
-                const yOffset =
-                  groupIndex * (rows.length * cellHeight + 30) + 24
+            {/* Heatmap */}
+            {linkLayouts.map((layout) => (
+              <g key={layout.linkId}>
+                {/* Separator */}
+                <line
+                  x1={0}
+                  x2={timeSlots.length * cellWidth}
+                  y1={layout.yOffset - 10}
+                  y2={layout.yOffset - 10}
+                  stroke="hsl(215 20% 20%)"
+                  strokeDasharray="4 4"
+                />
 
-                return (
-                  <g key={linkId}>
-                    {rows.map((row, rowIndex) => (
-                      <g key={row.cellId}>
-                        {timeSlots.map((time) => {
-                          const value = row.series[time] || 0
-                          const isHovered =
-                            hoveredCell?.cellId === row.cellId &&
-                            hoveredCell?.time === time
+                {layout.rows.map((row, rowIndex) => (
+                  <g key={row.cellId}>
+                    {timeSlots.map((time) => {
+                      const value = row.series[time] || 0
+                      const isHovered =
+                        hoveredCell?.cellId === row.cellId &&
+                        hoveredCell?.time === time
 
-                          return (
-                            <rect
-                              key={`${row.cellId}-${time}`}
-                              x={time * cellWidth}
-                              y={yOffset + rowIndex * cellHeight}
-                              width={cellWidth - 1}
-                              height={cellHeight - 2}
-                              fill={getColor(value)}
-                              opacity={getOpacity(value)}
-                              rx={2}
-                              className="cursor-pointer transition-opacity duration-100"
-                              style={{
-                                stroke: isHovered ? "#00D4FF" : "none",
-                                strokeWidth: isHovered ? 2 : 0
-                              }}
-                              onMouseEnter={() =>
-                                setHoveredCell({
-                                  cellId: row.cellId,
-                                  time
-                                })
-                              }
-                              onMouseLeave={() => setHoveredCell(null)}
-                            />
-                          )
-                        })}
-                      </g>
-                    ))}
+                      return (
+                        <rect
+                          key={`${row.cellId}-${time}`}
+                          x={time * cellWidth}
+                          y={layout.yOffset + rowIndex * cellHeight}
+                          width={cellWidth - 1}
+                          height={cellHeight - 2}
+                          fill={getColor(value)}
+                          opacity={getOpacity(value)}
+                          rx={2}
+                          className="cursor-pointer transition-all duration-100"
+                          style={{
+                            stroke: isHovered ? "#00D4FF" : "none",
+                            strokeWidth: isHovered ? 2 : 0
+                          }}
+                          onMouseEnter={() =>
+                            setHoveredCell({
+                              cellId: row.cellId,
+                              time
+                            })
+                          }
+                          onMouseLeave={() => setHoveredCell(null)}
+                        />
+                      )
+                    })}
                   </g>
-                )
-              }
-            )}
+                ))}
+              </g>
+            ))}
           </svg>
         </div>
       </div>
@@ -224,9 +240,10 @@ export const CongestionHeatmap = ({ timeRange }: CongestionHeatmapProps) => {
             Load:{" "}
             <span className="font-semibold">
               {(
-                heatmapRows.find(
-                  (r) => r.cellId === hoveredCell.cellId
-                )?.series[hoveredCell.time] || 0
+                linkLayouts
+                  .flatMap((l) => l.rows)
+                  .find((r) => r.cellId === hoveredCell.cellId)
+                  ?.series[hoveredCell.time] || 0
               ).toFixed(2)}{" "}
               Gbps
             </span>
