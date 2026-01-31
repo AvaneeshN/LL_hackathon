@@ -2,7 +2,7 @@
 
 class LossVectorBuilder:
     """
-    Builds loss behavior vectors for each cell
+    Builds behavior fingerprints for each cell
     """
 
     def __init__(self, data_handler):
@@ -13,3 +13,4 @@ class LossVectorBuilder:
         for cell in self.data_handler.get_cells():
             vectors[cell] = self.data_handler.get_loss_series(cell)
         return vectors
+

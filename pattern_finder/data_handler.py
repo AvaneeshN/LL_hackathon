@@ -6,8 +6,8 @@ from interfaces import DataHandler
 
 class RawFileDataHandler(DataHandler):
     """
-    Reads raw pkt-stats-cell-X.dat files and converts them
-    into binary packet loss time-series.
+    Reads pkt-stats-cell-X.dat files
+    Converts them into binary packet loss vectors
     """
 
     def __init__(self, data_dir):
@@ -16,19 +16,19 @@ class RawFileDataHandler(DataHandler):
 
     def _scan_cells(self):
         cells = []
-        for file in os.listdir(self.data_dir):
-            if file.startswith("pkt-stats-cell"):
-                cell_id = file.split("-")[-1].split(".")[0]
+        for fname in os.listdir(self.data_dir):
+            if fname.startswith("pkt-stats-cell") and fname.endswith(".dat"):
+                cell_id = fname.split("-")[-1].replace(".dat", "")
                 cells.append(cell_id)
-        return sorted(cells)
+        return sorted(cells, key=lambda x: int(x))
 
     def get_cells(self):
         return self.cells
 
     def get_loss_series(self, cell_id):
         path = os.path.join(self.data_dir, f"pkt-stats-cell-{cell_id}.dat")
-        loss_series = []
 
+        loss_series = []
         with open(path, "r") as f:
             for line in f:
                 parts = line.strip().split()

@@ -4,8 +4,8 @@ import networkx as nx
 
 class ClusteringEngine:
     """
-    Converts correlation matrix into a graph
-    and finds connected components (link groups)
+    Builds graph from correlation matrix
+    and finds connected components as links
     """
 
     def __init__(self, threshold):
@@ -14,11 +14,9 @@ class ClusteringEngine:
     def cluster(self, corr_df):
         G = nx.Graph()
 
-        # Add nodes
         for cell in corr_df.columns:
             G.add_node(cell)
 
-        # Add edges based on correlation threshold
         for i in corr_df.index:
             for j in corr_df.columns:
                 if i != j and corr_df.loc[i, j] > self.threshold:

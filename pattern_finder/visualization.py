@@ -5,7 +5,7 @@ import seaborn as sns
 
 class Visualizer:
     """
-    Generates visual artifacts for demo and validation
+    Generates correlation heatmap
     """
 
     def save_heatmap(self, corr_df, output_path):
@@ -15,3 +15,4 @@ class Visualizer:
         plt.tight_layout()
         plt.savefig(output_path)
         plt.close()
+

@@ -2,7 +2,7 @@
 
 class LinkValidator:
     """
-    Performs sanity checks on inferred links
+    Flags low-confidence or unusual link groups
     """
 
     def validate(self, link_map):
