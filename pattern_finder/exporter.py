@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 
+
 def export_topology(
     output_path,
     link_map,
@@ -8,7 +9,8 @@ def export_topology(
     threshold,
     dataset_mode,
     cell_count,
-    capacity_map=None
+    capacity_map=None,
+    traffic_map=None
 ):
     export_data = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
@@ -23,7 +25,10 @@ def export_topology(
             "id": link,
             "cells": cells,
             "confidence": round(confidences.get(link, 0.0), 3),
-            "capacity": capacity_map.get(link, {}) if capacity_map else {}
+            "capacity": capacity_map.get(link, {}) if capacity_map else {},
+            "traffic_timeseries": (
+                traffic_map.get(link, []) if traffic_map else []
+            )
         })
 
     with open(output_path, "w") as f:

@@ -3,60 +3,51 @@ import numpy as np
 
 class LinkCapacityEstimator:
     """
-    Estimates required Ethernet capacity per inferred link
-    based on transmitted packet rates of grouped cells.
-    Uses TX series from the DataHandler interface.
+    Estimates Ethernet link capacity
+    - Peak mode (no buffer)
+    - Safe mode (buffer-aware)
     """
 
-    def __init__(
-        self,
-        packet_size_bytes=1500,   # Ethernet MTU
-        slot_duration_sec=0.001, # 1 ms time slot
-        buffer_margin=0.20      # 20% safety margin
-    ):
-        self.packet_bits = packet_size_bytes * 8
-        self.slot_duration = slot_duration_sec
+    def __init__(self, buffer_margin=1.25):
         self.buffer_margin = buffer_margin
 
     def estimate(self, link_map, handler):
-        """
-        link_map: dict {link_id: [cell_ids]}
-        handler: DataHandler (RAW or PROCESSED)
-
-        Returns:
-        {
-          "Link_1": {
-              "estimated_gbps": float,
-              "safe_gbps": float
-          },
-          ...
-        }
-        """
-        results = {}
-        slots_per_second = 1.0 / self.slot_duration
+        capacity = {}
 
         for link, cells in link_map.items():
-            total_packets_per_slot = 0.0
+            all_tx = []
 
             for cell in cells:
                 tx_series = handler.get_tx_series(cell)
+                if len(tx_series) > 0:
+                    all_tx.append(tx_series)
 
-                if tx_series is not None and len(tx_series) > 0:
-                    total_packets_per_slot += float(np.mean(tx_series))
+            if not all_tx:
+                capacity[link] = {
+                    "peak_gbps": 0,
+                    "safe_gbps": 0,
+                    "buffer_mode": "margin"
+                }
+                continue
 
-            # packets/slot → packets/sec → bits/sec → Gbps
-            bits_per_second = (
-                total_packets_per_slot *
-                slots_per_second *
-                self.packet_bits
-            )
+            min_len = min(len(s) for s in all_tx)
+            stacked = np.vstack([s[:min_len] for s in all_tx])
 
-            gbps = bits_per_second / 1e9
-            safe_gbps = gbps * (1 + self.buffer_margin)
+            total_tx = stacked.sum(axis=0)
 
-            results[link] = {
-                "estimated_gbps": round(gbps, 3),
-                "safe_gbps": round(safe_gbps, 3)
+            # Convert packets → Gbps
+            bytes_per_packet = 1500
+            slot_sec = 0.0005
+
+            gbps = (total_tx * bytes_per_packet * 8) / (slot_sec * 1e9)
+
+            peak = float(np.max(gbps))
+            safe = round(peak * self.buffer_margin, 3)
+
+            capacity[link] = {
+                "peak_gbps": round(peak, 3),
+                "safe_gbps": safe,
+                "buffer_mode": "margin"
             }
 
-        return results
+        return capacity

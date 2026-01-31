@@ -1,12 +1,7 @@
 import os
 import numpy as np
 
-from config import (
-    DATA_PATH,
-    PROCESSED_DATA_PATH,
-    CORRELATION_THRESHOLD,
-    OUTPUT_DIR
-)
+from config import DATA_PATH, PROCESSED_DATA_PATH, CORRELATION_THRESHOLD, OUTPUT_DIR
 
 from data_handler import RawFileDataHandler
 from cleaned_csv_handler import CleanedCSVFolderHandler
@@ -16,16 +11,14 @@ from clustering_engine import ClusteringEngine
 from confidence import compute_confidence
 from visualization import Visualizer
 from exporter import export_topology
-
-# Nokia Challenge 2 Engine
-from dual_capture_capacity_estimator import DualCaptureCapacityEstimator
+from capacity_estimator import LinkCapacityEstimator
+from link_traffic_analyzer import LinkTrafficAnalyzer
 
 
 # ===============================
-# CONFIG: Switch data source
+# CONFIG
 # ===============================
-DATA_MODE = "raw"
-# Change to "processed" when teammate finishes CSV pipeline
+DATA_MODE = "raw"  # switch to "processed" later
 
 
 def main():
@@ -33,13 +26,10 @@ def main():
     print("🔧 Mode:", DATA_MODE.upper())
     print("🎚️ Correlation Threshold:", CORRELATION_THRESHOLD, "\n")
 
-    # -------------------------------
-    # Ensure output directory exists
-    # -------------------------------
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # -------------------------------
-    # Load dataset (RAW or PROCESSED)
+    # Load dataset
     # -------------------------------
     if DATA_MODE == "processed":
         handler = CleanedCSVFolderHandler(PROCESSED_DATA_PATH)
@@ -63,8 +53,6 @@ def main():
     # -------------------------------
     print("🧠 Building behavior fingerprints...")
     vectors = LossVectorBuilder(handler).build()
-
-    # Save for debugging / ML teammate
     np.save(os.path.join(OUTPUT_DIR, "loss_vectors.npy"), vectors)
 
     # -------------------------------
@@ -89,11 +77,21 @@ def main():
     confidences = compute_confidence(link_map, corr_df)
 
     # -------------------------------
-    # Capacity estimation (DU/RU MODEL)
+    # Capacity estimation
     # -------------------------------
-    print("📡 Estimating Ethernet link capacity (dual capture model)...")
-    capacity_engine = DualCaptureCapacityEstimator()
+    print("📡 Estimating Ethernet link capacity (dual mode)...")
+    capacity_engine = LinkCapacityEstimator()
     capacity_map = capacity_engine.estimate(link_map, handler)
+
+    # -------------------------------
+    # Traffic time-series
+    # -------------------------------
+    print("📈 Generating link traffic time-series...")
+    traffic_engine = LinkTrafficAnalyzer()
+    traffic_map = traffic_engine.build_timeseries(link_map, handler)
+
+    for link, series in traffic_map.items():
+        traffic_engine.plot(link, series, OUTPUT_DIR)
 
     # -------------------------------
     # Visualization
@@ -124,7 +122,8 @@ def main():
         CORRELATION_THRESHOLD,
         dataset_label,
         len(cells),
-        capacity_map
+        capacity_map,
+        traffic_map
     )
 
     # -------------------------------
@@ -135,18 +134,17 @@ def main():
     for link, group in link_map.items():
         conf = confidences.get(link, 0.0)
         cap = capacity_map.get(link, {})
-
         print(
             f"{link}: {group} | "
             f"confidence={conf:.2f} | "
-            f"peak={cap.get('peak_demand_gbps', 0)} Gbps | "
-            f"safe_capacity={cap.get('safe_capacity_gbps', 0)} Gbps | "
-            f"congestion={cap.get('congestion_score', 0)}"
+            f"peak={cap.get('peak_gbps', 0)} Gbps | "
+            f"safe_capacity={cap.get('safe_gbps', 0)} Gbps"
         )
 
     print(f"\n🧾 Frontend JSON saved to: {OUTPUT_DIR}/topology.json")
     print(f"📊 Heatmap saved to: {OUTPUT_DIR}/heatmap.png")
     print(f"🕸️ Topology graph saved to: {OUTPUT_DIR}/topology_graph.png")
+    print(f"📈 Traffic plots saved to: {OUTPUT_DIR}/traffic_Link_X.png")
 
 
 if __name__ == "__main__":
