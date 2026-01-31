@@ -1,4 +1,4 @@
-# cleaned_csv_handler.py
+
 
 import os
 import numpy as np
@@ -51,4 +51,4 @@ class CleanedCSVFolderHandler(DataHandler):
         if "loss_flag" not in df.columns:
             raise ValueError(f"{os.path.basename(path)} must contain loss_flag column")
 
-        return np.array(df["loss_flag"].astype(int).tolist())
+        return np.array(df["packets_tx"] - df["packets_rx"].astype(int).tolist())

@@ -13,4 +13,3 @@ class LossVectorBuilder:
         for cell in self.data_handler.get_cells():
             vectors[cell] = self.data_handler.get_loss_series(cell)
         return vectors
-

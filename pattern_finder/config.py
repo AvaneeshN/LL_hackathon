@@ -7,7 +7,7 @@ DATA_PATH = "../data/raw"
 PROCESSED_DATA_PATH = "../data/processed"
 
 # Correlation threshold for linking cells
-CORRELATION_THRESHOLD = 0.7
+CORRELATION_THRESHOLD = 0.5
 
 # Rolling window (reserved for future smoothing)
 ROLLING_WINDOW = 10

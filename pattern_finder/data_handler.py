@@ -4,6 +4,7 @@ import os
 import numpy as np
 from interfaces import DataHandler
 
+
 class RawFileDataHandler(DataHandler):
     """
     Reads pkt-stats-cell-X.dat files
@@ -45,4 +46,4 @@ class RawFileDataHandler(DataHandler):
                 loss = max(0, tx - rx + late)
                 loss_series.append(1 if loss > 0 else 0)
 
-        return np.array(loss_series)
+        return np.array(loss_series, dtype=float)
