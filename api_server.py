@@ -79,3 +79,5 @@ if __name__ == "__main__":
     print("📈 Traffic:  http://localhost:5000/api/traffic\n")
 
     app.run(host="0.0.0.0", port=5000, debug=True)
+    print(app.url_map)
+
